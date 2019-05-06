@@ -84,9 +84,9 @@ document.addEventListener("DOMContentLoaded", function() {
    })
 
    //shows you who you are [this can be removed when we get usernames]
-   socket.on('yourself', function(msg){
-      $('#yourself').append($('<h2>').text(msg));
-   });
+   // socket.on('yourself', function(msg){
+   //    $('#yourself').append($('<h2>').text(msg));
+   // });
 
    //clears the chat, resets timer, and gives everyone but the judge a canvas
    socket.on('clear chat', function(){
@@ -107,5 +107,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
    socket.on('timesUp', function(){
       socket.emit('timesUp');
+   })
+
+   //for username
+   socket.on('username', function(){
+      socket.emit('username', prompt('Choose a Username'));
    })
 });

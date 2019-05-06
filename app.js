@@ -19,7 +19,8 @@ app.get('/', function(req, res) {
    res.sendfile('index.html');
 });
 
-var users = [];
+var users = {};
+var userslst =[]; //this is just so we can keep the current structure of choosing the next player
 var currJudge = 0;
 
 var prompts = ['What do old people smell like?', 'What gets better with age?', 'Sorry everyone, I just _________.', 'White people like _______.', 'I drink to forget ________.', 'Whats that sound?', 'Why am I sticky?'];
@@ -33,7 +34,7 @@ function newPrompt(){
 var currPrompt = "";
 var userJudging = "";
 
-var countdown = 5;
+var countdown = 30;
 setInterval(function() {
 	countdown--;
 	io.sockets.emit('timer', {
@@ -41,75 +42,87 @@ setInterval(function() {
 	});
 	if (countdown <= 0){
 		io.sockets.emit('chat message',"new judge");
-		io.sockets.in(users[currJudge]).emit('timesUp');
+		io.sockets.in(userslst[currJudge]).emit('timesUp');
 		// io.sockets.emit('resetTimer');
 	}
 }, 1000);
 
 io.sockets.on('connection', function(socket){
 	socket.on('resetTimer', function(data){
-		countdown = 5;
-		io.sockets.in(users[currJudge]).emit('timer', {
+		countdown = 30;
+		io.sockets.in(userslst[currJudge]).emit('timer', {
 			countdown: countdown
 		});
 	});
 });
 
 io.on('connection', function (socket) {
-	users.push(socket.id);
-	console.log(users);
-	socket.emit('yourself', "Your id: " + socket.id);
-	var line_history = [];
+	userslst.push(socket.id);
+	var username = "";
+	socket.emit('username');
+	socket.on('username', function(name){
+		// username = name;
+		var line_history = [];
+		users[socket.id] = {username: name, line_history: [], score: 0};
+		console.log(users);
+		// socket.emit('yourself', "Your id: " + socket.id);
+		
 
-	//joins specific room
-	if(io.sockets.adapter.rooms["judge"] === undefined){
-		socket.join("judge");
-		io.in(socket.id).emit("chat message", "You are judging");
-		currPrompt = newPrompt();
-		userJudging = socket.id;
-	} else{
-		socket.join("player");
-		io.in(socket.id).emit("chat message", "You are playing");
-	}
-	socket.emit('prompt', "Prompt: " + currPrompt);
-	socket.emit("chat message", userJudging + " is judging");
-	io.to('player').emit('draw');
+		//joins specific room
+		if(io.sockets.adapter.rooms["judge"] === undefined){
+			socket.join("judge");
+			io.in(socket.id).emit("chat message", "You are judging");
+			currPrompt = newPrompt();
+			// userJudging = socket.id;
+			userJudging = users[socket.id].username;
+		} else{
+			socket.join("player");
+			io.in(socket.id).emit("chat message", "You are playing");
+		}
+		userJudging = users[userslst[currJudge]].username;
+		socket.emit('prompt', "Prompt: " + currPrompt);
+		socket.emit("chat message", userJudging + " is judging");
+		io.to('player').emit('draw');
+	})
+	
 
 	//disconnect
 	socket.on('disconnect', function(){
 		//takes the player out of the users array
-		for (var i=0; i < users.length; i++){
-			if (users[i] == socket.id){
-				users.splice(i,1);
+		for (var i=0; i < userslst.length; i++){
+			if (userslst[i] == socket.id){
+				userslst.splice(i,1);
 			};
 		};
+		delete users[socket.id]; //is this a good way to delete? 
 
 		//adds the next user to the judging room
 		if (io.sockets.adapter.rooms["judge"] === undefined) {
-			if(users[currJudge] === undefined){
+			if(userslst[currJudge] === undefined){
 				currJudge=0;
 			}
 			// socket.emit('chat message', socket.id + " is judging!");
-			io.in(users[currJudge]).emit('new judge', users[currJudge]);
+			io.in(userslst[currJudge]).emit('new judge', userslst[currJudge]);
 		};
 	});
 
 	socket.on('timesUp', function(){
-		socket.emit('chat message', 'Times Up. Current Judge is ' + users[currJudge]);
+		// var cj = userslst[currJudge];
+		// socket.emit('chat message', 'Times Up. Current Judge is ' + cj.username);
 
 		socket.leave('judge');
 		socket.join('player');
 		socket.emit('clear chat');
-		io.in(users[currJudge]).emit('chat message', "You are playing");
+		io.in(userslst[currJudge]).emit('chat message', "You are playing");
 
 		console.log('curr judge', currJudge)
-		if(users[currJudge+1] === undefined){
+		if(userslst[currJudge+1] === undefined){
 				currJudge=0;
 		} else{
 			currJudge++;
 		}
 		console.log('curr judge', currJudge)
-		io.in(users[currJudge]).emit('new judge', users[currJudge]);
+		io.in(userslst[currJudge]).emit('new judge', userslst[currJudge]);
 		// socket.emit('resetTimer');
 	})
 
@@ -119,11 +132,11 @@ io.on('connection', function (socket) {
 		socket.join('judge');
 		userJudging = socket.id;
 		socket.emit('clear chat');
-		io.in(users[currJudge]).emit('chat message', "You are judging");
+		io.in(userslst[currJudge]).emit('chat message', "You are judging");
 		currPrompt = newPrompt();
 		socket.emit('prompt', "Prompt: " + currPrompt);
-		for(var i=0; i<users.length; i++){
-			io.in(users[i]).emit('clear');
+		for(var i=0; i<userslst.length; i++){
+			io.in(userslst[i]).emit('clear');
 		}
 		socket.emit('resetTimer');
 		io.to('player').emit('chat message', 'PLAYER');
@@ -138,7 +151,10 @@ io.on('connection', function (socket) {
 	// }
 
 	socket.on('draw_line', function (data) {
-		line_history.push(data.line);
+		var curr = users[socket.id].line_history;
+		curr.push(data.line);
+		// console.log(users[socket.id].line_history)
+		// users[socket.id].line_history.push(data.line);
 		io.in(socket.id).emit('draw_line', { line: data.line } );
 	});
 
