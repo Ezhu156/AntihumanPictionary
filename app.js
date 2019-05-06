@@ -31,18 +31,20 @@ function newPrompt(){
 
 var currPrompt = "";
 var userJudging = "";
+let username = "";
 
 app.get('/', function(req, res) {
 	res.sendFile('home.html', { root: path.join(__dirname, 'public') });
 });
-
 app.post('/', function (req, res) {
-	let username = req.body.username;
-	res.sendFile('game.html', { root: path.join(__dirname, 'public') });
+		username = req.body.username;
+		res.sendFile('game.html', { root: path.join(__dirname, 'public') });
 });
 
+
 var countdown = 30;
-setInterval(function() {
+function startCountdown() {
+	setInterval(function(){
 	countdown--;
 	io.sockets.emit('timer', {
 		countdown: countdown
@@ -52,35 +54,46 @@ setInterval(function() {
 		io.sockets.in(userslst[currJudge]).emit('timesUp');
 		// io.sockets.emit('resetTimer');
 	}
-}, 1000);
+},1000);
+}
 
 io.on('connection', function (socket) {
 	userslst.push(socket.id);
-	var username = "";
-	socket.emit('username');
-	socket.on('username', function(name){
+	
+	// var username = "";
+	// socket.emit('username');
+	// socket.on('username', function(name){
 		// username = name;
-		var line_history = [];
-		users[socket.id] = {username: name, line_history: [], score: 0};
-		console.log(users);
-		// socket.emit('yourself', "Your id: " + socket.id);
-		
+	var line_history = [];
+	users[socket.id] = {username: username, line_history: [], score: 0};
+	console.log(users);
+	// socket.emit('yourself', "Your id: " + socket.id);
+	
 
-		//joins specific room
-		if(io.sockets.adapter.rooms["judge"] === undefined){
-			socket.join("judge");
-			io.in(socket.id).emit("chat message", "You are judging");
-			currPrompt = newPrompt();
-			// userJudging = socket.id;
-			userJudging = users[socket.id].username;
-		} else{
-			socket.join("player");
-			io.in(socket.id).emit("chat message", "You are playing");
-		}
-		userJudging = users[userslst[currJudge]].username;
-		socket.emit('prompt', "Prompt: " + currPrompt);
-		socket.emit("chat message", userJudging + " is judging");
-		io.to('player').emit('draw');
+	//joins specific room
+	if(io.sockets.adapter.rooms["judge"] === undefined){
+		socket.join("judge");
+		io.in(socket.id).emit("chat message", "You are judging");
+		currPrompt = newPrompt();
+		// userJudging = socket.id;
+		userJudging = users[socket.id].username;
+	} else{
+		socket.join("player");
+		io.in(socket.id).emit("chat message", "You are playing");
+	}
+	userJudging = users[userslst[currJudge]].username;
+	socket.emit('prompt', "Prompt: " + currPrompt);
+	socket.emit("chat message", userJudging + " is judging");
+	io.to('player').emit('draw');
+	if (userslst.length >= 2){
+		io.emit('startGame');
+	}
+
+	// })
+
+	socket.on('startGame', function(){
+		console.log("starting count");
+		startCountdown();
 	})
 	
 

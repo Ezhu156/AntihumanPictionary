@@ -113,6 +113,10 @@ document.addEventListener("DOMContentLoaded", function() {
    socket.on('username', function(){
       socket.emit('username', prompt('Choose a Username'));
    });
+
+   socket.on('startGame', function(){
+      socket.emit('startGame');
+   })
 });
 
 
