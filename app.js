@@ -1,4 +1,3 @@
-
 var express = require('express'), 
 app = express(),
 http = require('http'),
@@ -8,16 +7,15 @@ path= require('path');
 var server = http.createServer(app);
 var io = socketIo.listen(server);
 
+const bodyParser = require('body-parser');
+app.use(bodyParser.urlencoded({ extended: true }));
+
 const port = 8080;
 server.listen(port);
 app.use(express.static(__dirname + '/public'));
-console.log("Server running on 127.0.0.1:"+ port);
+console.log("Server running on port:"+ port);
 
 app.use(express.static(path.join(__dirname, "public")));
-
-app.get('/', function(req, res) {
-   res.sendfile('index.html');
-});
 
 var users = {};
 var userslst =[]; //this is just so we can keep the current structure of choosing the next player
@@ -34,6 +32,15 @@ function newPrompt(){
 var currPrompt = "";
 var userJudging = "";
 
+app.get('/', function(req, res) {
+	res.sendFile('home.html', { root: path.join(__dirname, 'public') });
+});
+
+app.post('/', function (req, res) {
+	let username = req.body.username;
+	res.sendFile('game.html', { root: path.join(__dirname, 'public') });
+});
+
 var countdown = 30;
 setInterval(function() {
 	countdown--;
@@ -46,15 +53,6 @@ setInterval(function() {
 		// io.sockets.emit('resetTimer');
 	}
 }, 1000);
-
-io.sockets.on('connection', function(socket){
-	socket.on('resetTimer', function(data){
-		countdown = 30;
-		io.sockets.in(userslst[currJudge]).emit('timer', {
-			countdown: countdown
-		});
-	});
-});
 
 io.on('connection', function (socket) {
 	userslst.push(socket.id);
@@ -144,9 +142,8 @@ io.on('connection', function (socket) {
 	});
 
 	// io.emit('some event', { for: 'everyone' });
-
 	//drawing
-	// for (var i in line_history) {
+	//for (var i in line_history) {
 	// 	// socket.emit('draw_line', { line: line_history[i] } );
 	// }
 
@@ -161,5 +158,12 @@ io.on('connection', function (socket) {
 	socket.on('clear', function(){
 		line_history=[];
 		console.log("clear");
-	})
+	});
+
+	socket.on('resetTimer', function(data){
+		countdown = 30;
+		io.sockets.in(userslst[currJudge]).emit('timer', {
+			countdown: countdown
+		});
+	});
 });

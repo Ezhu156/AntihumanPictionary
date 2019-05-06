@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title>Antihuman Pictionary</title>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="style.css" />
+      <script src="socket.io/socket.io.js"></script>
+      <script src="main.js"></script>
+      <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+   </head>
+   <body>
+      <div id="login">
+         <div id="intro">
+            <h1>Antihuman Pictionary</h1>
+            <p>Welcome To AntiHuman Pictionary, You have ten rounds to out-funny your friends! </p>
+            <p>Please enter a username below to begin</p>
+         </div>
+         <fieldset>
+            <form action="/" method="post">
+               <input name="username" type="text" placeholder="please enter a username" required>
+               <input type="submit" value="Play">
+            </form>
+         </fieldset>
+         <ul id="players"></ul>
+      </div>
+   </body>
+</html>

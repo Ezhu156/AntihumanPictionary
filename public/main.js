@@ -112,5 +112,28 @@ document.addEventListener("DOMContentLoaded", function() {
    //for username
    socket.on('username', function(){
       socket.emit('username', prompt('Choose a Username'));
-   })
+   });
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
