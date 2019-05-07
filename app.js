@@ -22,8 +22,7 @@ const prompts = ['What do old people smell like?', 'What gets better with age?',
 let randNum;
 
 function randInt(max){
-	randNum = Math.floor(Math.random()*max);
-	return randNum;
+	return Math.floor(Math.random()*max);
 }
 
 let currPrompt = "";
@@ -41,23 +40,28 @@ app.post('/', function (req, res) {
 
 
 let countdown = 30;
-function startCountdown() {
-	setInterval(function(){
-	countdown--;
-	io.sockets.emit('timer', {
-		countdown: countdown
-	});
-	if (countdown <= 0){
-		io.sockets.emit('chat message',"new judge");
-		io.sockets.in(userslst[currJudge]).emit('timesUp');
-		// io.sockets.emit('resetTimer');
+function startCountdown(keepCount = true) {
+	if(keepCount) {
+		setInterval(function(){
+		countdown--;
+		io.sockets.emit('timer', {
+			countdown: countdown
+		});
+
+		if (countdown <= 0){
+			io.sockets.emit('chat message', "new judge");
+			io.sockets.in(userslst[currJudge]).emit('timesUp');
+			// io.sockets.emit('resetTimer');
+		}
+		}, 1000);
+	} else {
+		countdown = 30;
+		io.sockets.emit('chat message', 'Judgeing in progress...');
 	}
-	}, 1000);
 }
 
 io.on('connection', function (socket) {
 	userslst.push(socket.id);
-	
 	// var username = "";
 	// socket.emit('username');
 	// socket.on('username', function(name){
@@ -66,9 +70,7 @@ io.on('connection', function (socket) {
 	users[socket.id] = {username: username, line_history: [], score: 0};
 	console.log(users);
 
-	io.sockets.emit('addScores', {
-		id: socket.id
-	});
+	socket.emit('addScores', users[socket.id]);
 	// socket.emit('yourself', "Your id: " + socket.id);
 	
 
@@ -76,7 +78,7 @@ io.on('connection', function (socket) {
 	if(io.sockets.adapter.rooms["judge"] === undefined){
 		socket.join("judge");
 		io.in(socket.id).emit("chat message", "You are judging");
-		currPrompt = prompts[randint(prompts.length)];
+		currPrompt = prompts[randInt(prompts.length)];
 		// userJudging = socket.id;
 		userJudging = users[socket.id].username;
 	} else{
@@ -118,30 +120,34 @@ io.on('connection', function (socket) {
 			io.in(userslst[currJudge]).emit('new judge', userslst[currJudge]);
 		}
 
-		users.remove(socket.id);
+		//users.remove(socket.id);
 	});
 
 	socket.on('timesUp', function(){
 		// var cj = userslst[currJudge];
 		// socket.emit('chat message', 'Times Up. Current Judge is ' + cj.username);
+		console.log("Time's Up");
+		startCountdown(false);
+		socket.emit('getData', users);
 
-		socket.leave('judge');
-		socket.join('player');
-		socket.emit('clear chat');
-		io.in(userslst[currJudge]).emit('chat message', "You are playing");
+		// socket.leave('judge');
+		// socket.join('player');
 
-		console.log('curr judge', currJudge)
-		if(userslst[currJudge+1] === undefined){
-				currJudge=0;
-		} else {
-			currJudge++;
-		}
-		console.log('curr judge', currJudge)
-		io.in(userslst[currJudge]).emit('new judge', userslst[currJudge]);
-		// socket.emit('resetTimer');
-	})
+		// socket.emit('clear chat');
+		// io.in(userslst[currJudge]).emit('chat message', "You are playing");
 
-	//if the current judge leaves the game, then the games moves on to the next judge and the round
+		// console.log('curr judge: ', currJudge)
+		// if(userslst[currJudge+1] === undefined){
+		// 		currJudge=0;
+		// } else {
+		// 	currJudge++;
+		// }
+		// console.log('curr judge: ', currJudge)
+		// io.in(userslst[currJudge]).emit('new judge', userslst[currJudge]);
+		// // socket.emit('resetTimer');
+	});
+
+	//if the current judge leaves the game, then the games moves on to the next judge and round
 	socket.on('new judge', function(name) {
 		socket.leave('player');
 		socket.join('judge');
@@ -149,7 +155,7 @@ io.on('connection', function (socket) {
 		userJudging = socket.id;
 		socket.emit('clear chat');
 		io.in(userslst[currJudge]).emit('chat message', "You are judging");
-		currPrompt = newPrompt();
+		currPrompt = prompts[randInt(prompts.length)];
 		socket.emit('prompt', "Prompt: " + currPrompt);
 
 		for(var i=0; i<userslst.length; i++){
@@ -187,15 +193,4 @@ io.on('connection', function (socket) {
 		});
 	});
 
-	socket.on('sendDrawData', function(data){
-		io.sockets.in(userslst[currJudge]).emit('recieveDrawData', {
-			users: users
-		});
-	});
-
-	socket.on('updateScores', function(data) {
-		socket.emit('updateScores', {
-			users: users
-		});
-	});
 });

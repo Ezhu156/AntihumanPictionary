@@ -11,7 +11,6 @@ document.addEventListener("DOMContentLoaded", function() {
 	var context = canvas.getContext('2d');
 	var width   = window.innerWidth;
 	var height  = window.innerHeight;
-	var socket  = io.connect();
 
 	//sets the size of the canvas
 	canvas.width = 500;
@@ -34,6 +33,8 @@ document.addEventListener("DOMContentLoaded", function() {
 			mouse.within=true;
 		}
 	};
+
+	var socket  = io.connect();
 
 	// draw line received from server
 	socket.on('draw_line', function (data) {
@@ -109,6 +110,10 @@ document.addEventListener("DOMContentLoaded", function() {
 		socket.emit('timesUp');
 	})
 
+	socket.on('stopTimer', function(){
+		$('#timer').html(data.countdown);
+	});
+
 	//for username
 	socket.on('username', function(){
 		socket.emit('username', prompt('Choose a Username'));
@@ -119,25 +124,28 @@ document.addEventListener("DOMContentLoaded", function() {
 	});
 
 	socket.on('addScores', function(data) {
+		console.log("Adding Scores")
 		console.log(data)
-		$('#scores').append($('<li>').attr('id', (data.id)));
+		$('#scores').append($('<li>').attr('id', (data.username))).text(data.username +': '+ data.score);
 	});
 
-	socket.on('recieveDrawData', function(data) {
+	socket.on('getData', function(data) {
+		console.log("Heres the DATA");
 		console.log(data);
+
 		let count = 0;
 		for(let i in data.users) {
 			$('#judge').append($('<canvas>').attr('id', ('canvas'+count)));
 			socket.emit('draw_line', data.users.line_history);
 			++count
 		}
+
+		for(let i in data.users) {
+			$(("#"+data.users[i].username)).text(data.users[i].username +": "+ data.users[i].score);
+		}
+
 	});
 
-	socket.on('updateScores', function(data) {
-		for(let i in data.users) {
-			$(("#"+data.users[i].id)).text(data.users[i].username +": "+ data.users[i].score)
-		}
-	});
 });
 
 
