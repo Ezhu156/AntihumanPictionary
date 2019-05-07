@@ -1,48 +1,46 @@
-var express = require('express'), 
-app = express(),
+const express = require('express'),
 http = require('http'),
 socketIo = require('socket.io'),
-path= require('path');
-
-var server = http.createServer(app);
-var io = socketIo.listen(server);
-
-const bodyParser = require('body-parser');
-app.use(bodyParser.urlencoded({ extended: true }));
+path= require('path'),
+bodyParser = require('body-parser'),
+app = express();
 
 const port = 8080;
+const server = http.createServer(app);
+const io = socketIo.listen(server);
 server.listen(port);
-app.use(express.static(__dirname + '/public'));
+
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
 console.log("Server running on port:"+ port);
 
-app.use(express.static(path.join(__dirname, "public")));
+let users = {};
+let userslst =[]; //this is just so we can keep the current structure of choosing the next player
+let currJudge = 0;
 
-var users = {};
-var userslst =[]; //this is just so we can keep the current structure of choosing the next player
-var currJudge = 0;
+const prompts = ['What do old people smell like?', 'What gets better with age?', 'Sorry everyone, I just _________.', 'White people like _______.', 'I drink to forget ________.', 'Whats that sound?', 'Why am I sticky?'];
+let randNum;
 
-var prompts = ['What do old people smell like?', 'What gets better with age?', 'Sorry everyone, I just _________.', 'White people like _______.', 'I drink to forget ________.', 'Whats that sound?', 'Why am I sticky?'];
-var randNum;
-
-function newPrompt(){
-	randNum = Math.floor(Math.random()*prompts.length);
-	return prompts[randNum];
+function randInt(max){
+	randNum = Math.floor(Math.random()*max);
+	return randNum;
 }
 
-var currPrompt = "";
-var userJudging = "";
+let currPrompt = "";
+let userJudging = "";
 let username = "";
 
 app.get('/', function(req, res) {
 	res.sendFile('home.html', { root: path.join(__dirname, 'public') });
 });
+
 app.post('/', function (req, res) {
 		username = req.body.username;
 		res.sendFile('game.html', { root: path.join(__dirname, 'public') });
 });
 
 
-var countdown = 30;
+let countdown = 30;
 function startCountdown() {
 	setInterval(function(){
 	countdown--;
@@ -54,7 +52,7 @@ function startCountdown() {
 		io.sockets.in(userslst[currJudge]).emit('timesUp');
 		// io.sockets.emit('resetTimer');
 	}
-},1000);
+	}, 1000);
 }
 
 io.on('connection', function (socket) {
@@ -64,9 +62,13 @@ io.on('connection', function (socket) {
 	// socket.emit('username');
 	// socket.on('username', function(name){
 		// username = name;
-	var line_history = [];
+	let line_history = [];
 	users[socket.id] = {username: username, line_history: [], score: 0};
 	console.log(users);
+
+	io.sockets.emit('addScores', {
+		id: socket.id
+	});
 	// socket.emit('yourself', "Your id: " + socket.id);
 	
 
@@ -74,18 +76,19 @@ io.on('connection', function (socket) {
 	if(io.sockets.adapter.rooms["judge"] === undefined){
 		socket.join("judge");
 		io.in(socket.id).emit("chat message", "You are judging");
-		currPrompt = newPrompt();
+		currPrompt = prompts[randint(prompts.length)];
 		// userJudging = socket.id;
 		userJudging = users[socket.id].username;
 	} else{
 		socket.join("player");
 		io.in(socket.id).emit("chat message", "You are playing");
 	}
-	userJudging = users[userslst[currJudge]].username;
-	socket.emit('prompt', "Prompt: " + currPrompt);
-	socket.emit("chat message", userJudging + " is judging");
-	io.to('player').emit('draw');
+
 	if (userslst.length >= 2){
+		userJudging = users[userslst[currJudge]].username;
+		socket.emit('prompt', "Prompt: " + currPrompt);
+		socket.emit("chat message", userJudging + " is judging");
+		io.to('player').emit('draw');
 		io.emit('startGame');
 	}
 
@@ -96,7 +99,6 @@ io.on('connection', function (socket) {
 		startCountdown();
 	})
 	
-
 	//disconnect
 	socket.on('disconnect', function(){
 		//takes the player out of the users array
@@ -110,11 +112,13 @@ io.on('connection', function (socket) {
 		//adds the next user to the judging room
 		if (io.sockets.adapter.rooms["judge"] === undefined) {
 			if(userslst[currJudge] === undefined){
-				currJudge=0;
+				currJudge = 0;
 			}
 			// socket.emit('chat message', socket.id + " is judging!");
 			io.in(userslst[currJudge]).emit('new judge', userslst[currJudge]);
-		};
+		}
+
+		users.remove(socket.id);
 	});
 
 	socket.on('timesUp', function(){
@@ -129,7 +133,7 @@ io.on('connection', function (socket) {
 		console.log('curr judge', currJudge)
 		if(userslst[currJudge+1] === undefined){
 				currJudge=0;
-		} else{
+		} else {
 			currJudge++;
 		}
 		console.log('curr judge', currJudge)
@@ -141,14 +145,17 @@ io.on('connection', function (socket) {
 	socket.on('new judge', function(name) {
 		socket.leave('player');
 		socket.join('judge');
+
 		userJudging = socket.id;
 		socket.emit('clear chat');
 		io.in(userslst[currJudge]).emit('chat message', "You are judging");
 		currPrompt = newPrompt();
 		socket.emit('prompt', "Prompt: " + currPrompt);
+
 		for(var i=0; i<userslst.length; i++){
 			io.in(userslst[i]).emit('clear');
 		}
+
 		socket.emit('resetTimer');
 		io.to('player').emit('chat message', 'PLAYER');
 		io.to('judge').emit('chat message', 'JUDGE');
@@ -177,6 +184,18 @@ io.on('connection', function (socket) {
 		countdown = 30;
 		io.sockets.in(userslst[currJudge]).emit('timer', {
 			countdown: countdown
+		});
+	});
+
+	socket.on('sendDrawData', function(data){
+		io.sockets.in(userslst[currJudge]).emit('recieveDrawData', {
+			users: users
+		});
+	});
+
+	socket.on('updateScores', function(data) {
+		socket.emit('updateScores', {
+			users: users
 		});
 	});
 });
